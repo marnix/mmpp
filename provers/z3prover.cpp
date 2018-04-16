@@ -492,12 +492,12 @@ struct Z3Adapter {
                     // The thesis should be true independently of ph
                     pwff thesis = parse_expr(e.arg(0), tb);
 #ifdef VERBOSE_Z3
-                    std::cout << "ORACLE for '" << thesis->to_string() << "'!" << std::endl;
+                    //std::cout << "ORACLE for '" << thesis->to_string() << "'!" << std::endl;
 #endif
-                    Prover< InspectableProofEngine< Sentence > > p1 = thesis->get_adv_truth_prover(tb).second;
-                    /*auto pt = pt2_to_pt(thesis->to_parsing_tree(this->tb));
+                    //Prover< InspectableProofEngine< Sentence > > p1 = thesis->get_adv_truth_prover(tb).second;
+                    auto pt = pt2_to_pt(thesis->to_parsing_tree(this->tb));
                     auto sent = this->tb.reconstruct_sentence(pt, this->tb.get_turnstile());
-                    Prover< InspectableProofEngine< Sentence > > p1 = this->tb.build_prover({}, sent, {}, {});*/
+                    Prover< InspectableProofEngine< Sentence > > p1 = this->tb.build_prover({}, sent, {}, {});
                     auto ret = this->tb.build_registered_prover< InspectableProofEngine< Sentence > >(a1i_rp, {{"ph", this->get_current_abs_hyps()->get_type_prover(this->tb)}, {"ps", thesis->get_type_prover(this->tb)}}, {p1});
                     ret = this->build_checked_prover(ret, thesis);
                     return ret; }
@@ -915,149 +915,3 @@ BOOST_DATA_TEST_CASE(test_wff_minisat_prover, boost::unit_test::data::xrange(3),
 #endif
 }
 #endif
-
-static bool recognize(const ParsingTree< SymTok, LabTok > &pt, const std::string &model, const LibraryToolbox &tb, SubstMap< SymTok, LabTok > &subst) {
-    UnilateralUnificator< SymTok, LabTok > unif(tb.get_standard_is_var());
-    auto model_pt = tb.parse_sentence(tb.read_sentence(model));
-    model_pt.validate(tb.get_validation_rule());
-    assert(model_pt.label != LabTok{});
-    unif.add_parsing_trees(model_pt, pt);
-    std::set< LabTok > model_vars;
-    collect_variables(model_pt, tb.get_standard_is_var(), model_vars);
-    bool ret;
-    std::tie(ret, subst) = unif.unify();
-    if (ret) {
-        for (const auto var : model_vars) {
-            ParsingTree< SymTok, LabTok > pt_var;
-            pt_var.label = var;
-            pt_var.type = tb.get_var_lab_to_type_sym(var);
-            subst.insert(std::make_pair(var, pt_var));
-        }
-    }
-    return ret;
-}
-
-z3::expr convert_to_z3(const ParsingTree< SymTok, LabTok > &pt, const LibraryToolbox &tb, const std::set< LabTok > &set_vars, z3::sort &set_sort, z3::context &ctx) {
-    assert(pt.label != LabTok{});
-    SubstMap< SymTok, LabTok > subst;
-    if (recognize(pt, "wff A = B", tb, subst)) {
-        auto left = convert_to_z3(subst.at(tb.get_var_sym_to_lab(tb.get_symbol("A"))), tb, set_vars, set_sort, ctx);
-        auto right = convert_to_z3(subst.at(tb.get_var_sym_to_lab(tb.get_symbol("B"))), tb, set_vars, set_sort, ctx);
-        return (left == right);
-    } else if (recognize(pt, "wff -. ph", tb, subst)) {
-        auto op = convert_to_z3(subst.at(tb.get_var_sym_to_lab(tb.get_symbol("ph"))), tb, set_vars, set_sort, ctx);
-        return !op;
-    } else if (recognize(pt, "wff ( ph -> ps )", tb, subst)) {
-        auto left = convert_to_z3(subst.at(tb.get_var_sym_to_lab(tb.get_symbol("ph"))), tb, set_vars, set_sort, ctx);
-        auto right = convert_to_z3(subst.at(tb.get_var_sym_to_lab(tb.get_symbol("ps"))), tb, set_vars, set_sort, ctx);
-        return implies(left, right);
-    } else if (recognize(pt, "wff ( ph /\\ ps )", tb, subst)) {
-        auto left = convert_to_z3(subst.at(tb.get_var_sym_to_lab(tb.get_symbol("ph"))), tb, set_vars, set_sort, ctx);
-        auto right = convert_to_z3(subst.at(tb.get_var_sym_to_lab(tb.get_symbol("ps"))), tb, set_vars, set_sort, ctx);
-        return left && right;
-    } else if (recognize(pt, "wff ( ph \\/ ps )", tb, subst)) {
-        auto left = convert_to_z3(subst.at(tb.get_var_sym_to_lab(tb.get_symbol("ph"))), tb, set_vars, set_sort, ctx);
-        auto right = convert_to_z3(subst.at(tb.get_var_sym_to_lab(tb.get_symbol("ps"))), tb, set_vars, set_sort, ctx);
-        return left || right;
-    } else if (recognize(pt, "wff ( ph <-> ps )", tb, subst)) {
-        auto left = convert_to_z3(subst.at(tb.get_var_sym_to_lab(tb.get_symbol("ph"))), tb, set_vars, set_sort, ctx);
-        auto right = convert_to_z3(subst.at(tb.get_var_sym_to_lab(tb.get_symbol("ps"))), tb, set_vars, set_sort, ctx);
-        return left == right;
-    } else if (recognize(pt, "wff A. x ph", tb, subst)) {
-        auto var = convert_to_z3(subst.at(tb.get_var_sym_to_lab(tb.get_symbol("x"))), tb, set_vars, set_sort, ctx);
-        auto body = convert_to_z3(subst.at(tb.get_var_sym_to_lab(tb.get_symbol("ph"))), tb, set_vars, set_sort, ctx);
-        return forall(var, body);
-    } else if (recognize(pt, "wff E. x ph", tb, subst)) {
-        auto var = convert_to_z3(subst.at(tb.get_var_sym_to_lab(tb.get_symbol("x"))), tb, set_vars, set_sort, ctx);
-        auto body = convert_to_z3(subst.at(tb.get_var_sym_to_lab(tb.get_symbol("ph"))), tb, set_vars, set_sort, ctx);
-        return exists(var, body);
-    } else if (recognize(pt, "class x", tb, subst)) {
-        return ctx.constant(tb.resolve_symbol(tb.get_var_lab_to_sym(subst.at(tb.get_var_sym_to_lab(tb.get_symbol("x"))).label)).c_str(), set_sort);
-    } else if (recognize(pt, "set x", tb, subst)) {
-        return ctx.constant(tb.resolve_symbol(tb.get_var_lab_to_sym(subst.at(tb.get_var_sym_to_lab(tb.get_symbol("x"))).label)).c_str(), set_sort);
-    } else if (recognize(pt, "wff ph", tb, subst)) {
-        z3::sort_vector sorts(ctx);
-        z3::expr_vector args(ctx);
-        for (const auto x : set_vars) {
-            sorts.push_back(set_sort);
-            args.push_back(ctx.constant(tb.resolve_symbol(tb.get_var_lab_to_sym(x)).c_str(), set_sort));
-        }
-        auto func = ctx.function(tb.resolve_symbol(tb.get_var_lab_to_sym(subst.at(tb.get_var_sym_to_lab(tb.get_symbol("ph"))).label)).c_str(), sorts, ctx.bool_sort());
-        return func(args);
-    } else {
-        assert(!"Should not arrive here");
-    }
-}
-
-int test_z3_2_main(int argc, char *argv[]) {
-    (void) argc;
-    (void) argv;
-
-    auto &data = get_set_mm();
-    //auto &lib = data.lib;
-    auto &tb = data.tb;
-
-    try {
-        z3::set_param("proof", true);
-        z3::context c;
-        Z3_set_ast_print_mode(c, Z3_PRINT_LOW_LEVEL);
-
-        z3::solver s(c);
-        /*z3::params param(c);
-        param.set("mbqi", true);
-        s.set(param);*/
-
-        /*z3::sort things = c.uninterpreted_sort("thing");
-        z3::sort bool_sort = c.bool_sort();
-        z3::func_decl man = c.function("man", 1, &things, bool_sort);
-        z3::func_decl mortal = c.function("mortal", 1, &things, bool_sort);
-        z3::expr socrates = c.constant("socrates", things);
-        z3::expr x = c.constant("x", things);
-        z3::expr hyp1 = forall(x, implies(man(x), mortal(x)));
-        z3::expr hyp2 = man(socrates);
-        z3::expr thesis = mortal(socrates);
-        s.add(hyp1);
-        s.add(hyp2);
-        s.add(!thesis);*/
-
-        z3::sort sets = c.uninterpreted_sort("set");
-        z3::sort bools = c.bool_sort();
-        z3::expr x = c.constant("x", sets);
-        z3::expr y = c.constant("y", sets);
-        z3::func_decl p = c.function("p", sets, bools);
-        z3::func_decl q = c.function("q", sets, bools);
-        //z3::expr thesis = (exists(x, forall(y, p(x) == p(y))) == (exists(x, q(x)) == exists(y, q(y)))) == (exists(x, forall(y, q(x) == q(y))) == (exists(x, p(x)) == exists(y, p(y))));
-        //z3::expr thesis = (x == x) && forall(x, x == x);
-        auto pt = tb.parse_sentence(tb.read_sentence("|- ( ( ( y = z -> ( ( x = y -> ph ) /\\ E. x ( x = y /\\ ph ) ) ) /\\ E. y ( y = z /\\ ( ( x = y -> ph ) /\\ E. x ( x = y /\\ ph ) ) ) ) <-> ( ( y = z -> ( ( x = z -> ph ) /\\ E. x ( x = z /\\ ph ) ) ) /\\ E. y ( y = z /\\ ( ( x = z -> ph ) /\\ E. x ( x = z /\\ ph ) ) ) ) )"));
-        //auto pt = tb.parse_sentence(tb.read_sentence("|- A. x x = x"));
-        std::set< LabTok > set_vars;
-        collect_variables(pt, std::function< bool(LabTok) >([&tb](auto x) { return tb.get_standard_is_var()(x) && tb.get_var_lab_to_type_sym(x) == tb.get_symbol("set"); }), set_vars);
-        z3::expr thesis = convert_to_z3(pt, tb, set_vars, sets, c);
-        std::vector< z3::symbol > tmp;
-        auto pt_thesis = expr_to_pt(thesis, tb, tmp);
-        assert(pt_thesis.validate(tb.get_validation_rule()));
-        s.add(!thesis);
-
-        std::cout << "Recostructed PT: " << tb.print_sentence(pt_thesis) << std::endl;
-
-        std::cout << "Solver: " << std::endl << s << std::endl;
-
-        switch (s.check()) {
-        case z3::unsat:   std::cout << "UNSAT\n"; break;
-        case z3::sat:     std::cout << "SAT\n"; break;
-        case z3::unknown: std::cout << "UNKNOWN\n"; break;
-        }
-
-        auto proof = s.proof();
-        std::cout << "Proof:" << std::endl << proof << std::endl;
-
-        std::cout << std::endl;
-    } catch (z3::exception &e) {
-        std::cerr << "Caught exception:\n" << e << std::endl;
-    }
-
-    return 0;
-}
-static_block {
-    register_main_function("test_z3_2", test_z3_2_main);
-}
