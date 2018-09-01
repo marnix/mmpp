@@ -10,21 +10,18 @@
 #include <atomic>
 #include <queue>
 
-#define BOOST_COROUTINE_NO_DEPRECATION_WARNING
-#define BOOST_COROUTINES_NO_DEPRECATION_WARNING
-#include <boost/coroutine/all.hpp>
-
+#include "platform.h"
 #include "utils.h"
 
 class Yielder {
 public:
-    Yielder(boost::coroutines::asymmetric_coroutine< void >::push_type &base_yield);
+    Yielder(coroutine_push< void > &base_yield);
     void operator()() {
         this->yield_impl();
     }
 
 private:
-    boost::coroutines::asymmetric_coroutine< void >::push_type &yield_impl;
+    coroutine_push< void > &yield_impl;
 };
 
 class Coroutine {
@@ -41,24 +38,23 @@ public:
 private:
 
     template< typename T >
-    static boost::coroutines::asymmetric_coroutine< void >::pull_type make_coroutine(std::shared_ptr< T > body) {
-        return boost::coroutines::asymmetric_coroutine< void >::pull_type([body](boost::coroutines::asymmetric_coroutine< void >::push_type &yield_impl) mutable {
+    static decltype(auto) make_coroutine(std::shared_ptr< T > body) {
+        return std::make_unique< coroutine_pull< void > >([body](coroutine_push< void > &yield_impl) mutable {
             Yielder yield(yield_impl);
             yield();
             try {
                 (*body)(yield);
-            } catch(const boost::coroutines::detail::forced_unwind&) {
+            } catch (const coroutine_forced_unwind&) {
                 // Rethow internal coroutine exceptions, as per their specifications
                 throw;
-            } catch (const std::exception &e) {
-                std::cerr << "Coroutine threw exception " << e.what() << std::endl;
             } catch (...) {
-                std::cerr << "Coroutine threw unknown exception" << std::endl;
+                std::cerr << "Coroutine filed with exception" << std::endl;
+                default_exception_handler(std::current_exception());
             }
         });
     }
 
-    boost::coroutines::asymmetric_coroutine< void >::pull_type coro_impl;
+    std::unique_ptr< coroutine_pull< void > > coro_impl;
 };
 
 /*

@@ -52,14 +52,18 @@ equals(DISABLE_TESTS, "true") {
 }
 
 !win32 {
-    QMAKE_LIBS += -lboost_system -lboost_filesystem -lboost_serialization -lboost_coroutine -lpthread
+    QMAKE_LIBS += -lboost_system -lboost_filesystem -lboost_serialization
     !equals(DISABLE_TESTS, "true") {
         QMAKE_LIBS += -lboost_unit_test_framework
     }
 }
 
 linux {
-    QMAKE_LIBS += -lbfd
+    QMAKE_LIBS += -pthread -lbfd -lboost_context
+}
+
+macx {
+    QMAKE_LIBS += -lboost_coroutine
 }
 
 win32 {
