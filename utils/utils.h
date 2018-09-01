@@ -264,11 +264,8 @@ auto vector_map(InputIt from, InputIt to, UnaryOperation op) -> std::vector< dec
     return ret;
 }
 
-#define BOOST_COROUTINE_NO_DEPRECATION_WARNING
-#define BOOST_COROUTINES_NO_DEPRECATION_WARNING
-#include <boost/coroutine/all.hpp>
 template< typename T >
-using Generator = typename boost::coroutines::asymmetric_coroutine< T >::pull_type;
+using Generator = coroutine_pull< T >;
 
 template< typename It1, typename It2 >
 bool is_disjoint(It1 from1, It1 to1, It2 from2, It2 to2) {
@@ -324,3 +321,5 @@ bool has_no_diagonal(It from, It end) {
         ++from;
     }
 }
+
+void default_exception_handler(std::exception_ptr ptr);

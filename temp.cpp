@@ -11,6 +11,7 @@
 #include "mm/toolbox.h"
 #include "parsing/unif.h"
 #include "provers/wff.h"
+#include "utils/utils.h"
 
 //#pragma GCC push_options
 //#pragma GCC optimize ("O0")
@@ -148,4 +149,19 @@ int test_backtrace_main(int argc, char *argv[]) {
 }
 static_block {
     register_main_function("test_backtrace", test_backtrace_main);
+}
+
+int test_exception_main(int argc, char *argv[]) {
+    (void) argc;
+    (void) argv;
+
+    throw std::vector< std::pair< int, double > >();
+    throw MMPPException("Test reason");
+    throw std::runtime_error("Test what");
+    throw 22;
+    throw "Test exception";
+    throw std::string("Test exception");
+}
+static_block {
+    register_main_function("test_exception", test_exception_main);
 }

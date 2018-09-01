@@ -54,10 +54,18 @@ static_block {
     register_main_function("mmpp", main_mmpp);
 }
 
+void terminator() {
+    std::cerr << "Program terminated by an uncaught exception" << std::endl;
+    default_exception_handler(std::current_exception());
+    platform_dump_stack_trace(std::cerr, platform_get_stack_trace());
+    std::abort();
+}
+
 // See the comment in test/test.cpp
 #if (!defined(_WIN32)) || (!defined(TEST_BUILD))
 
 int main(int argc, char *argv[]) {
+    std::set_terminate(terminator);
     platform_set_max_ram(4 * 1024 * 1024 * 1024LL);
     boost::filesystem::path exec_path(argv[0]);
     std::string bname = exec_path.filename().string();
@@ -73,19 +81,7 @@ int main(int argc, char *argv[]) {
             return 1;
         }
     }
-    //return main_func(argc, argv);
-    try {
-        return main_func(argc, argv);
-    } catch (const MMPPException &e) {
-        std::cerr << "Dying because of MMPPException with reason '" << e.get_reason() << "'..." << std::endl;
-        return 1;
-    } catch (const char* &e) {
-        std::cerr << "Dying because of string exception '" << e << "'..." << std::endl;
-        return 1;
-    } catch (std::string &e) {
-        std::cerr << "Dying because of string exception '" << e << "'..." << std::endl;
-        return 1;
-    }
+    return main_func(argc, argv);
 }
 
 #endif
