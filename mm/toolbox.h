@@ -29,6 +29,8 @@ template< typename Engine >
 using Prover = std::function< bool(Engine&) >;
 const Prover< ProofEngine > null_prover = [](ProofEngine&){ return false; };
 
+Prover<ProofEngine> trivial_prover(LabTok label);
+
 struct SentencePrinter {
     enum Style {
         STYLE_PLAIN,
@@ -542,6 +544,10 @@ Prover< Engine > checked_prover(Prover< Engine > prover, typename Engine::SentTy
         size_t stack_len_before = engine.get_stack().size();
         bool res = prover(engine);
         size_t stack_len_after = engine.get_stack().size();
+#ifdef NDEBUG
+        (void) stack_len_before;
+        (void) stack_len_after;
+#endif
         if (res) {
             assert(stack_len_after >= 1);
             assert(stack_len_after + 1 >= stack_len_before);

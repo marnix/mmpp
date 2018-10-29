@@ -23,6 +23,7 @@
 #include <boost/archive/text_oarchive.hpp>
 #include <boost/iostreams/stream.hpp>
 #include <boost/iostreams/concepts.hpp>
+#include <boost/current_function.hpp>
 
 #include "platform.h"
 
@@ -126,7 +127,7 @@ std::string hash_object(const T &obj) {
     return hasher.get_digest();
 }
 
-// Funny trick from https://stackoverflow.com/a/41485014/807307
+// From https://stackoverflow.com/a/41485014/807307
 template<typename S>
 struct enable_make final : public S
 {
@@ -137,24 +138,39 @@ struct enable_make final : public S
     }
 };
 
+// From https://stackoverflow.com/a/15550262/807307
+struct virtual_enable_shared_from_this_base : std::enable_shared_from_this<virtual_enable_shared_from_this_base> {
+    virtual ~virtual_enable_shared_from_this_base();
+};
+
+template<typename T>
+struct virtual_enable_shared_from_this : public virtual virtual_enable_shared_from_this_base {
+    std::shared_ptr<T> shared_from_this() {
+        return std::dynamic_pointer_cast<T>(virtual_enable_shared_from_this_base::shared_from_this());
+    }
+    std::shared_ptr<const T> shared_from_this() const {
+        return std::dynamic_pointer_cast<const T>(virtual_enable_shared_from_this_base::shared_from_this());
+    }
+    std::weak_ptr<T> weak_from_this() {
+        return this->shared_from_this();
+    }
+    std::weak_ptr<const T> weak_from_this() const {
+        return this->shared_from_this();
+    }
+};
+
 template< typename T >
-struct enable_create : public std::enable_shared_from_this< T > {
+struct enable_create : public virtual_enable_shared_from_this< T > {
     template< typename... Args >
     static std::shared_ptr< T > create(Args&&... args) {
         std::shared_ptr< enable_make< T > > pointer = std::make_shared< enable_make< T > >(std::forward< Args >(args)...);
-        static_cast< std::shared_ptr< enable_create< T > > >(pointer)->init();
+        std::static_pointer_cast< enable_create< T > >(pointer)->init();
         return pointer;
     }
 
-#if (!(__cpp_lib_enable_shared_from_this >= 201603))
-    std::weak_ptr< T > weak_from_this() {
-        return this->shared_from_this();
-    }
-
-    std::weak_ptr< const T > weak_from_this() const {
-        return this->shared_from_this();
-    }
-#endif
+    // Would this be somehow helpful?
+/*public:
+    virtual ~enable_create() {}*/
 
 protected:
     virtual void init() {}
@@ -323,3 +339,44 @@ bool has_no_diagonal(It from, It end) {
 }
 
 void default_exception_handler(std::exception_ptr ptr);
+
+template<typename T>
+std::string to_string(const T &t) {
+    std::ostringstream ss;
+    ss << t;
+    return ss.str();
+}
+
+[[noreturn]] inline void failed_assertion(const char *expr, const char *file, int line, const char *func, const std::string &ctx = "") {
+    std::cerr << file << ":" << line << ":" << func << ": assertion `" << expr << "' failed";
+    if (ctx != "") {
+        std::cerr << " with context `" << ctx << "'";
+    }
+    std::cerr << std::endl;
+    std::terminate();
+}
+
+template<typename T>
+struct istream_begin_end {
+    istream_begin_end(std::istream &s) : s(s) {}
+
+    decltype(auto) begin() const {
+        return std::istream_iterator<T>(s);
+    }
+
+    decltype(auto) end() const {
+        return std::istream_iterator<T>();
+    }
+
+    std::istream &s;
+};
+
+template<typename T>
+struct star_less {
+    constexpr bool operator()(const T &x, const T &y) const {
+        return *x < *y;
+    }
+};
+
+#define gio_assert(expr) (static_cast<bool>(expr) ? static_cast<void>(0) : failed_assertion(#expr, __FILE__, __LINE__, BOOST_CURRENT_FUNCTION))
+#define gio_assert_ctx(expr, ctx) (static_cast<bool>(expr) ? static_cast<void>(0) : failed_assertion(#expr, __FILE__, __LINE__, BOOST_CURRENT_FUNCTION, to_string(ctx)))

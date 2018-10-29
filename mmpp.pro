@@ -19,6 +19,7 @@ CONFIG += link_pkgconfig
 DEFINES += "PROJ_DIR=\"\\\"$$PWD\\\"\""
 
 CONFIG += c++14
+CONFIG -= app_bundle
 
 linux {
     # Compile with gcc
@@ -138,13 +139,15 @@ SOURCES += \
     libs/minisat/Solver.cc \
     provers/sat.cpp \
     provers/wffblock.cpp \
-    apps/tstp.cpp \
+    provers/tstp/tstp.cpp \
     provers/wffsat.cpp \
     apps/resolver.cpp \
     provers/subst.cpp \
     apps/verify.cpp \
     mm/setmm.cpp \
-    test/test_wff.cpp
+    test/test_wff.cpp \
+    mm/mmutils.cpp \
+    provers/tstp/tstp_parser.cpp
 
 HEADERS += \
     pch.h \
@@ -198,7 +201,9 @@ HEADERS += \
     provers/subst.h \
     mm/setmm.h \
     test/test.h \
-    libs/backward.h
+    libs/backward.h \
+    mm/mmutils.h \
+    provers/tstp/tstp_parser.h
 
 DISTFILES += \
     README.md \
